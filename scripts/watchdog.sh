@@ -53,7 +53,7 @@ check_server() {
         proto="https"
     fi
 
-    local url="${proto}://${TARGET_HOST}:${TARGET_PORT}/api/verify"
+    local url="${proto}://${TARGET_HOST}:${TARGET_PORT}/"
     local http_code
     http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "${url}" 2>/dev/null)
     local exit_code=$?
