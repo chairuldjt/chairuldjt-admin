@@ -8,7 +8,10 @@ import {
     Network,
     Loader2,
     CheckCircle2,
-    XCircle
+    XCircle,
+    Thermometer,
+    Globe,
+    Wifi
 } from 'lucide-react';
 import {
     AreaChart,
@@ -74,6 +77,20 @@ const Overview = () => {
         return `${d}d ${h}h ${m}m`;
     };
 
+    const getTempColor = (temp) => {
+        if (temp === null || temp === undefined) return 'text-gray-500';
+        if (temp < 50) return 'text-green-400';
+        if (temp < 70) return 'text-yellow-400';
+        return 'text-red-400';
+    };
+
+    const getTempBg = (temp) => {
+        if (temp === null || temp === undefined) return 'bg-gray-500/10 border-gray-500/20';
+        if (temp < 50) return 'bg-green-500/10 border-green-500/20';
+        if (temp < 70) return 'bg-yellow-500/10 border-yellow-500/20';
+        return 'bg-red-500/10 border-red-500/20';
+    };
+
     if (loading && !stats) return (
         <div className="flex items-center justify-center h-64">
             <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
@@ -107,6 +124,65 @@ const Overview = () => {
                 <StatCard title="Memory" value={stats?.mem?.used || '0'} unit={`/ ${stats?.mem?.total} GB`} icon={Database} color="bg-purple-500" />
                 <StatCard title="Disk Usage" value={stats?.disk?.percent || '0'} unit="%" icon={HardDrive} color="bg-emerald-500" />
                 <StatCard title="Load Average" value={stats?.loadAvg || '0'} unit="1 min" icon={Network} color="bg-orange-500" />
+            </div>
+
+            {/* Network & Hardware Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="glass p-6 rounded-3xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full blur-3xl opacity-10 transition-opacity group-hover:opacity-20 bg-cyan-500" />
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20">
+                            <Globe className="w-5 h-5 text-cyan-400" />
+                        </div>
+                        <span className="text-sm font-medium text-gray-400">IP Address</span>
+                    </div>
+                    <p className="text-lg font-bold text-white tracking-tight font-mono">{stats?.ip || '-'}</p>
+                    <p className="text-[10px] text-gray-500 mt-1">{stats?.netInterface || ''}</p>
+                </div>
+
+                <div className="glass p-6 rounded-3xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full blur-3xl opacity-10 transition-opacity group-hover:opacity-20 bg-indigo-500" />
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+                            <Wifi className="w-5 h-5 text-indigo-400" />
+                        </div>
+                        <span className="text-sm font-medium text-gray-400">MAC Address</span>
+                    </div>
+                    <p className="text-lg font-bold text-white tracking-tight font-mono">{stats?.mac || '-'}</p>
+                </div>
+
+                <div className="glass p-6 rounded-3xl relative overflow-hidden group col-span-1 md:col-span-2">
+                    <div className={`absolute top-0 right-0 w-32 h-32 -mr-8 -mt-8 rounded-full blur-3xl opacity-10 transition-opacity group-hover:opacity-20 ${stats?.cpuTemp !== null ? (stats?.cpuTemp < 50 ? 'bg-green-500' : stats?.cpuTemp < 70 ? 'bg-yellow-500' : 'bg-red-500') : 'bg-gray-500'}`} />
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className={`p-3 rounded-2xl border ${getTempBg(stats?.cpuTemp)}`}>
+                            <Thermometer className={`w-5 h-5 ${getTempColor(stats?.cpuTemp)}`} />
+                        </div>
+                        <span className="text-sm font-medium text-gray-400">CPU Temperature</span>
+                    </div>
+                    <div className="flex items-baseline gap-3">
+                        <p className={`text-3xl font-bold tracking-tight ${getTempColor(stats?.cpuTemp)}`}>
+                            {stats?.cpuTemp !== null && stats?.cpuTemp !== undefined ? `${stats.cpuTemp}` : 'N/A'}
+                        </p>
+                        {stats?.cpuTemp !== null && stats?.cpuTemp !== undefined && (
+                            <span className="text-sm text-gray-500 font-semibold">°C</span>
+                        )}
+                        {stats?.cpuTemp !== null && stats?.cpuTemp !== undefined && (
+                            <div className="ml-auto flex items-center gap-2">
+                                <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${stats.cpuTemp < 50 ? 'bg-green-500/10 text-green-400 border border-green-500/20' : stats.cpuTemp < 70 ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                                    {stats.cpuTemp < 50 ? 'Cool' : stats.cpuTemp < 70 ? 'Warm' : 'Hot'}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    {stats?.cpuTemp !== null && stats?.cpuTemp !== undefined && (
+                        <div className="mt-3 w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-500 ${stats.cpuTemp < 50 ? 'bg-green-500' : stats.cpuTemp < 70 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                style={{ width: `${Math.min(stats.cpuTemp, 100)}%` }}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -198,3 +274,4 @@ const StatCard = ({ title, value, unit, icon: Icon, color }) => (
 );
 
 export default Overview;
+

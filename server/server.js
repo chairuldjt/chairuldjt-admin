@@ -88,10 +88,12 @@ app.get('/api/verify', authenticateToken, (req, res) => {
 
 app.get('/api/system-stats', authenticateToken, async (req, res) => {
     try {
-        const [cpu, mem, disk, osInfo, time] = await Promise.all([
-            si.currentLoad(), si.mem(), si.fsSize(), si.osInfo(), si.time()
+        const [cpu, mem, disk, osInfo, time, networkIfaces, cpuTemp] = await Promise.all([
+            si.currentLoad(), si.mem(), si.fsSize(), si.osInfo(), si.time(),
+            si.networkInterfaces(), si.cpuTemperature()
         ]);
         const loadAvg = os.loadavg();
+        const primaryNet = (Array.isArray(networkIfaces) ? networkIfaces : []).find(i => !i.internal && i.ip4) || {};
         res.json({
             cpu: cpu.currentLoad.toFixed(1),
             mem: {
@@ -108,7 +110,11 @@ app.get('/api/system-stats', authenticateToken, async (req, res) => {
             uptime: time.uptime,
             hostname: osInfo.hostname,
             distro: osInfo.distro,
-            kernel: osInfo.kernel
+            kernel: osInfo.kernel,
+            ip: primaryNet.ip4 || '-',
+            mac: primaryNet.mac || '-',
+            netInterface: primaryNet.iface || '-',
+            cpuTemp: cpuTemp.main !== null ? cpuTemp.main : null
         });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });

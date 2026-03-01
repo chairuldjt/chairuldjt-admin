@@ -9,6 +9,7 @@ import Storage from './pages/Storage';
 import Security from './pages/Security';
 import TerminalPage from './pages/Terminal';
 import UsersPage from './pages/UsersPage';
+import { getTerminalManager } from './services/terminalManager';
 
 function Dashboard({ onLogout }) {
   const location = useLocation();
@@ -61,6 +62,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('nexus_token');
     localStorage.removeItem('nexus_user');
+    getTerminalManager().destroy();
     setUser(null);
   };
 
