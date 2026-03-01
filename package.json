@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "db:init": "node server/dbInit.js",
     "server": "node server/server.js",
-    "start": "node server/server.js"
+    "start": "node server/server.js",
+    "watchdog": "node server/watchdog.js"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
