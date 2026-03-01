@@ -185,20 +185,22 @@ Server Rumah ◄──── watchdog.sh (cron) ────► Server Kantor
 
 ### Setup
 
-**On Server Rumah** (monitors Server Kantor):
-
 ```bash
-nano scripts/watchdog.sh
+# Create config from template
+cp .env.watchdog.example .env.watchdog
+nano .env.watchdog
 ```
 
 ```bash
-# Edit these values:
-TARGET_HOST="IP_SERVER_KANTOR"
-TARGET_PORT="5069"
-TARGET_NAME="Server Kantor"
-THIS_SERVER="Server Rumah"
+# .env.watchdog — example for Server Kantor monitoring Server Rumah
 TELEGRAM_BOT_TOKEN="your_bot_token"
 TELEGRAM_CHAT_ID="your_chat_id"
+TARGET_HOST="chatech.site"    # domain or IP of the OTHER server
+TARGET_PORT="443"             # 443 for Cloudflare, 5069 for direct
+TARGET_NAME="Server Rumah"
+THIS_SERVER="Server Kantor"
+FAIL_THRESHOLD=3
+USE_HTTPS="yes"               # "yes" for Cloudflare domain, "no" for IP
 ```
 
 ```bash
@@ -210,20 +212,19 @@ crontab -e
 */2 * * * * /absolute/path/to/scripts/watchdog.sh >> /var/log/watchdog.log 2>&1
 ```
 
-**On Server Kantor** (monitors Server Rumah): same steps, swap `TARGET_*` values.
+> **Tip:** Config is stored in `.env.watchdog` (gitignored), so `git pull` will never conflict.
 
-### Health check layers
+On the **other server**: same steps, swap `TARGET_*` values to point to this server.
 
-The watchdog uses 3 layers of checks before declaring a server down:
+### Health check
 
-| Layer | Method | What it checks |
-|-------|--------|---------------|
-| 1 | HTTP GET `/api/verify` | Application is running |
-| 2 | TCP port check | Port 5069 is open |
-| 3 | ICMP ping | Server is reachable |
+The watchdog checks `GET /api/verify` on the target server. If **3 consecutive checks fail** (~6 minutes) → sends 🔴 alert. When server recovers → sends ✅ recovery.
 
-After **3 consecutive failures** (~6 minutes) → sends alert to Telegram.
-When server recovers → sends recovery notification.
+### View logs
+
+```bash
+tail -f /var/log/watchdog.log
+```
 
 ---
 
@@ -285,7 +286,8 @@ Production serves everything on **one port** (5069):
 │   │   └── Login.jsx          # Auth page
 │   └── App.jsx                # React Router
 ├── ecosystem.config.cjs       # PM2 configuration
-├── .env.example               # Environment template
+├── .env.example               # Server environment template
+├── .env.watchdog.example      # Watchdog config template
 └── package.json
 ```
 
