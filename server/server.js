@@ -336,17 +336,37 @@ wss.on('connection', async (ws, req) => {
             env: process.env
         });
         pty.onData(data => { if (ws.readyState === 1) ws.send(data); });
+
+        // Server-side heartbeat to detect dead clients
+        ws.isAlive = true;
+        ws.on('pong', () => { ws.isAlive = true; });
+        const pingInterval = setInterval(() => {
+            if (ws.isAlive === false) return ws.terminate();
+            ws.isAlive = false;
+            ws.ping();
+        }, 30000);
+
         ws.on('message', msg => {
             const str = msg.toString();
             try {
                 const parsed = JSON.parse(str);
                 if (parsed.type === 'resize') pty.resize(parsed.cols, parsed.rows);
+                else if (parsed.type === 'ping') { /* Just a heartbeat, do nothing */ }
+                else if (parsed.type === 'data') pty.write(parsed.data);
                 else pty.write(str);
-            } catch { pty.write(str); }
+            } catch {
+                // If not JSON, treat as raw data for legacy support or simpler clients
+                pty.write(str);
+            }
         });
-        ws.on('close', () => { pty.kill(); console.log('🖥 Terminal disconnected'); });
-    } catch {
-        // Fallback: use child_process.spawn
+
+        ws.on('close', () => {
+            clearInterval(pingInterval);
+            pty.kill();
+            console.log('🖥 Terminal disconnected');
+        });
+    } catch (err) {
+        console.error('❌ Terminal node-pty failed:', err.message);
         try {
             const { spawn: cpSpawn } = await import('child_process');
             const shell = cpSpawn(shellPath, [], {
@@ -360,8 +380,33 @@ wss.on('connection', async (ws, req) => {
             });
             shell.stdout.on('data', d => { if (ws.readyState === 1) ws.send(d.toString()); });
             shell.stderr.on('data', d => { if (ws.readyState === 1) ws.send(d.toString()); });
-            ws.on('message', msg => shell.stdin.write(msg.toString()));
-            ws.on('close', () => { shell.kill(); console.log('🖥 Terminal disconnected (fallback)'); });
+
+            // Server-side heartbeat for fallback shell
+            ws.isAlive = true;
+            ws.on('pong', () => { ws.isAlive = true; });
+            const pingInterval = setInterval(() => {
+                if (ws.isAlive === false) return ws.terminate();
+                ws.isAlive = false;
+                ws.ping();
+            }, 30000);
+
+            ws.on('message', msg => {
+                const str = msg.toString();
+                try {
+                    const parsed = JSON.parse(str);
+                    if (parsed.type === 'ping') { /* ignore */ }
+                    else if (parsed.type === 'data') shell.stdin.write(parsed.data);
+                    else shell.stdin.write(str);
+                } catch {
+                    shell.stdin.write(str);
+                }
+            });
+
+            ws.on('close', () => {
+                clearInterval(pingInterval);
+                shell.kill();
+                console.log('🖥 Terminal disconnected (fallback)');
+            });
         } catch (err) {
             console.error('❌ Terminal fallback failed:', err.message);
             if (ws.readyState === 1) ws.send(`\r\nTerminal not available: ${err.message}\r\n`);
