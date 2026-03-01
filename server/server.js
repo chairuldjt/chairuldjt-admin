@@ -340,7 +340,7 @@ wss.on('connection', async (ws, req) => {
 
 // Production: SPA fallback — all non-API routes serve index.html
 if (existsSync(distPath)) {
-    app.get('*', (req, res) => {
+    app.get('/{*path}', (req, res) => {
         res.sendFile(path.join(distPath, 'index.html'));
     });
 }
