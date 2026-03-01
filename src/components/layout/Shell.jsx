@@ -18,7 +18,8 @@ import {
     Info,
     AlertTriangle,
     CheckCircle2,
-    Check
+    Check,
+    Cloud
 } from 'lucide-react';
 
 const menuItems = [
@@ -27,6 +28,7 @@ const menuItems = [
     { label: 'Users', icon: Users, path: '/users' },
     { label: 'Storage', icon: HardDrive, path: '/storage' },
     { label: 'Security', icon: ShieldCheck, path: '/security' },
+    { label: 'Cloudflared', icon: Cloud, path: '/cloudflared' },
     { label: 'Terminal', icon: Terminal, path: '/terminal' },
     { label: 'Settings', icon: Settings, path: '/settings' },
 ];

@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
@@ -196,6 +196,84 @@ app.post('/api/services/:name/:action', authenticateToken, async (req, res) => {
         res.status(500).json({ error: err.stderr || err.message });
     }
 });
+
+// ───────────── CLOUDFLARED ─────────────
+
+const CLOUDFLARED_CONFIG = '/etc/cloudflared/config.yml';
+
+app.get('/api/cloudflared/config', authenticateToken, async (req, res) => {
+    try {
+        if (!existsSync(CLOUDFLARED_CONFIG)) {
+            return res.status(404).json({ error: 'Config file not found' });
+        }
+        const config = readFileSync(CLOUDFLARED_CONFIG, 'utf-8');
+        res.json({ config });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/cloudflared/config', authenticateToken, async (req, res) => {
+    const { config } = req.body;
+    if (typeof config !== 'string') return res.status(400).json({ error: 'Invalid config format' });
+    try {
+        writeFileSync(CLOUDFLARED_CONFIG, config);
+        res.json({ message: 'Configuration saved successfully' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/cloudflared/status', authenticateToken, async (req, res) => {
+    try {
+        const { stdout: status } = await execAsync("systemctl is-active cloudflared 2>/dev/null || echo 'inactive'");
+        const { stdout: version } = await execAsync("cloudflared --version 2>/dev/null || echo 'not installed'");
+        res.json({
+            active: status.trim() === 'active',
+            version: version.trim()
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/cloudflared/service/:action', authenticateToken, async (req, res) => {
+    const { action } = req.params;
+    const allowed = ['start', 'stop', 'restart'];
+    if (!allowed.includes(action)) return res.status(400).json({ error: 'Invalid action' });
+    try {
+        await execAsync(`sudo systemctl ${action} cloudflared`);
+        res.json({ message: `Service ${action}ed successfully` });
+    } catch (err) { res.status(500).json({ error: err.stderr || err.message }); }
+});
+
+app.post('/api/cloudflared/update', authenticateToken, async (req, res) => {
+    try {
+        await execAsync("sudo cloudflared update");
+        res.json({ message: 'Update command executed' });
+    } catch (err) { res.status(500).json({ error: err.stderr || err.message }); }
+});
+
+app.get('/api/cloudflared/tunnels', authenticateToken, async (req, res) => {
+    try {
+        const { stdout } = await execAsync("cloudflared tunnel list");
+        const lines = stdout.trim().split('\n').filter(l => l.includes('ID')); // Simple check
+        // Realistically, cloudflared output varies. This is a basic parser.
+        const tunnels = stdout.trim().split('\n').slice(2).map(line => {
+            const parts = line.trim().split(/\s+/);
+            return {
+                id: parts[0],
+                name: parts[1],
+                status: parts[2]
+            };
+        });
+        res.json(tunnels);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/cloudflared/dns', authenticateToken, async (req, res) => {
+    const { tunnel, hostname } = req.body;
+    if (!tunnel || !hostname) return res.status(400).json({ error: 'Tunnel and Hostname required' });
+    try {
+        await execAsync(`cloudflared tunnel route dns ${tunnel} ${hostname}`);
+        res.json({ message: `DNS route created for ${hostname}` });
+    } catch (err) { res.status(500).json({ error: err.stderr || err.message }); }
+});
+
 
 // ───────────── STORAGE ─────────────
 

@@ -9,6 +9,7 @@ import Storage from './pages/Storage';
 import Security from './pages/Security';
 import TerminalPage from './pages/Terminal';
 import UsersPage from './pages/UsersPage';
+import Cloudflared from './pages/Cloudflared';
 import { getTerminalManager } from './services/terminalManager';
 
 function Dashboard({ onLogout }) {
@@ -21,6 +22,7 @@ function Dashboard({ onLogout }) {
     '/users': 'Users',
     '/storage': 'Storage',
     '/security': 'Security',
+    '/cloudflared': 'Cloudflared',
     '/terminal': 'Terminal',
     '/settings': 'Settings',
   };
@@ -34,6 +36,7 @@ function Dashboard({ onLogout }) {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/storage" element={<Storage />} />
         <Route path="/security" element={<Security />} />
+        <Route path="/cloudflared" element={<Cloudflared />} />
         <Route path="/terminal" element={<TerminalPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
