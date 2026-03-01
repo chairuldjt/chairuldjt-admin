@@ -12,7 +12,7 @@
 #      */2 * * * * /path/to/watchdog.sh >> /var/log/watchdog.log 2>&1
 #
 # How it works:
-#   - Every 2 minutes, pings the TARGET server
+#   - Every 2 minutes, checks the TARGET server via HTTP
 #   - If 3 consecutive failures → sends Telegram alert
 #   - When server comes back → sends recovery alert
 # ============================================================
@@ -21,45 +21,54 @@
 TELEGRAM_BOT_TOKEN="YOUR_BOT_TOKEN_HERE"
 TELEGRAM_CHAT_ID="YOUR_CHAT_ID_HERE"
 
-# Target server to monitor (the OTHER server's IP/domain)
+# Target server to monitor (the OTHER server)
+# For same network: use IP, e.g. "192.168.1.100"
+# For different networks: use Cloudflare domain, e.g. "chatech.site"
 TARGET_HOST="10.45.128.127"
 TARGET_PORT="5069"
 TARGET_NAME="Server Rumah"
 
-# This server's name (for identification)
+# This server's name (for identification in alerts)
 THIS_SERVER="Server Kantor"
 
-# How many consecutive failures before alerting
+# How many consecutive failures before alerting (default: 3)
 FAIL_THRESHOLD=3
 
-# State file to track failures
-STATE_FILE="/tmp/watchdog_${TARGET_HOST}_state"
+# Use HTTPS? Set to "yes" if using Cloudflare domain
+USE_HTTPS="no"
+
+# State file to track failures (auto-generated, don't edit)
+STATE_FILE="/tmp/watchdog_$(echo ${TARGET_HOST} | tr '.' '_')_state"
 # ─────────────────────────────────────────────────────────────
 
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
 send_telegram() {
     local message="$1"
-    curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    local result
+    result=$(curl -s -w "%{http_code}" -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
         -d chat_id="${TELEGRAM_CHAT_ID}" \
         -d parse_mode="Markdown" \
-        -d text="${message}" > /dev/null 2>&1
+        -d text="${message}")
+    echo "[${TIMESTAMP}] 📤 Telegram response: ${result}"
 }
 
-# Try HTTP health check first, fallback to ping
+# Health check — only HTTP, most reliable for cross-network
 check_server() {
-    # Method 1: HTTP check (validates app is actually responding, not just Cloudflare CDN)
-    if curl -sf --connect-timeout 5 --max-time 10 "http://${TARGET_HOST}:${TARGET_PORT}/api/verify" > /dev/null 2>&1; then
-        return 0
+    local proto="http"
+    if [ "$USE_HTTPS" = "yes" ]; then
+        proto="https"
     fi
 
-    # Method 2: Simple TCP port check
-    if timeout 5 bash -c "echo > /dev/tcp/${TARGET_HOST}/${TARGET_PORT}" 2>/dev/null; then
-        return 0
-    fi
+    local url="${proto}://${TARGET_HOST}:${TARGET_PORT}/api/verify"
+    local http_code
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "${url}" 2>/dev/null)
+    local exit_code=$?
 
-    # Method 3: ICMP ping fallback
-    if ping -c 2 -W 3 "${TARGET_HOST}" > /dev/null 2>&1; then
+    echo "[${TIMESTAMP}] 🔍 Check ${url} → HTTP ${http_code}, curl exit ${exit_code}"
+
+    # Success only if curl succeeded AND got HTTP 2xx
+    if [ "$exit_code" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
         return 0
     fi
 
@@ -68,8 +77,8 @@ check_server() {
 
 # Read current failure count
 if [ -f "$STATE_FILE" ]; then
-    FAIL_COUNT=$(cat "$STATE_FILE" | head -1)
-    WAS_DOWN=$(cat "$STATE_FILE" | tail -1)
+    FAIL_COUNT=$(head -1 "$STATE_FILE")
+    WAS_DOWN=$(tail -1 "$STATE_FILE")
 else
     FAIL_COUNT=0
     WAS_DOWN="no"
@@ -87,6 +96,8 @@ if check_server; then
 💡 Server is back *ONLINE*
 🕐 *Time:* ${TIMESTAMP}"
         echo "[${TIMESTAMP}] ✅ ${TARGET_NAME} recovered!"
+    else
+        echo "[${TIMESTAMP}] ✅ ${TARGET_NAME} is UP"
     fi
     echo "0" > "$STATE_FILE"
     echo "no" >> "$STATE_FILE"
@@ -95,7 +106,7 @@ else
     FAIL_COUNT=$((FAIL_COUNT + 1))
     echo "$FAIL_COUNT" > "$STATE_FILE"
 
-    echo "[${TIMESTAMP}] ❌ ${TARGET_NAME} check failed (${FAIL_COUNT}/${FAIL_THRESHOLD})"
+    echo "[${TIMESTAMP}] ❌ ${TARGET_NAME} check FAILED (${FAIL_COUNT}/${FAIL_THRESHOLD})"
 
     if [ "$FAIL_COUNT" -ge "$FAIL_THRESHOLD" ] && [ "$WAS_DOWN" != "yes" ]; then
         # Threshold reached — send alert!
@@ -111,7 +122,7 @@ else
   • 🖥 Server hardware failure
 🕐 *Time:* ${TIMESTAMP}"
         echo "yes" >> "$STATE_FILE"
-        echo "[${TIMESTAMP}] 🚨 Alert sent for ${TARGET_NAME}!"
+        echo "[${TIMESTAMP}] 🚨 ALERT SENT for ${TARGET_NAME}!"
     else
         echo "$WAS_DOWN" >> "$STATE_FILE"
     fi
