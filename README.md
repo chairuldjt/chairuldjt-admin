@@ -5,6 +5,7 @@ Modern, glassmorphism-styled server dashboard for managing your personal Linux s
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
 
 ## Features
 
@@ -24,7 +25,7 @@ Modern, glassmorphism-styled server dashboard for managing your personal Linux s
 ## Tech Stack
 
 **Frontend:** React 19, Tailwind CSS v4, Recharts, Lucide Icons, xterm.js
-**Backend:** Express.js, MySQL2, systeminformation, WebSocket
+**Backend:** Express.js v5, MySQL2, systeminformation, WebSocket
 **Monitoring:** node-telegram-bot-api, cron watchdog
 
 ---
@@ -40,7 +41,7 @@ Modern, glassmorphism-styled server dashboard for managing your personal Linux s
 ### Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/chairuldjt-admin.git
+git clone https://github.com/chairuldjt/chairuldjt-admin.git
 cd chairuldjt-admin
 npm install
 ```
@@ -49,7 +50,7 @@ npm install
 
 ```bash
 cp .env.example .env
-nano .env  # Edit DB credentials & JWT secret
+nano .env
 ```
 
 ```env
@@ -70,15 +71,73 @@ npm run db:init
 ### Run
 
 ```bash
-# Development (frontend + backend)
+# Development (2 ports: Vite 5173 + Express 5069)
 npm run dev
 
-# Production (backend only, serve dist/ via nginx)
+# Production (single port: 5069)
 npm run build
 npm start
 ```
 
-> For better terminal support: `sudo apt install build-essential python3 && npm install node-pty`
+### Run with PM2
+
+```bash
+sudo npm install -g pm2
+npm run build
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup    # auto-start on server reboot
+```
+
+Useful PM2 commands:
+
+```bash
+pm2 logs              # real-time logs
+pm2 monit             # CPU/RAM monitor
+pm2 restart chairuldjt-admin
+pm2 stop chairuldjt-admin
+```
+
+---
+
+## Web Terminal Setup
+
+The dashboard includes a full web terminal powered by **xterm.js + WebSocket**. It works in two modes:
+
+### Basic Mode (works out of the box)
+
+Uses Node.js `child_process.spawn` — provides a functional shell but without full terminal features like resize and colors.
+
+### Full Mode (recommended for production)
+
+Install `node-pty` for full PTY support (resize, colors, Ctrl+C handling):
+
+```bash
+# Install build tools (required for node-pty)
+sudo apt update
+sudo apt install -y build-essential python3
+
+# Install node-pty
+npm install node-pty
+```
+
+> **Note:** `node-pty` requires native compilation. If you see errors during `npm install node-pty`, make sure `build-essential` and `python3` are installed.
+
+### Terminal behavior by OS
+
+| OS | Shell | Notes |
+|----|-------|-------|
+| Linux | `/bin/bash` | Full support |
+| Windows | `cmd.exe` | Basic support (for local dev only) |
+
+### Cloudflare Tunnel
+
+If serving via Cloudflare Tunnel, the terminal WebSocket works automatically. Ensure:
+
+- **SSL/TLS** is set to **Full** in Cloudflare dashboard
+- **WebSockets** are **enabled** (Network → WebSockets ON)
+
+The frontend auto-detects the protocol and uses `wss://` for HTTPS connections.
 
 ---
 
@@ -88,27 +147,35 @@ npm start
 
 1. Message [@BotFather](https://t.me/BotFather) → create bot → copy **API Token**
 2. Message [@userinfobot](https://t.me/userinfobot) → get your **Chat ID**
-3. Open **Settings** page in dashboard → save both values
+3. Open **Settings** page in dashboard → enter token & chat ID → Save
 
 ### Notifications
 
 | Event | Notification |
 |-------|-------------|
 | Server start | ✅ Online + hostname + timestamp |
-| Settings refresh | 🔄 Restarted |
-| CPU/RAM > threshold | ⚠️ High Resource Usage |
-| Ctrl+C / `systemctl stop` | 🔴 Offline — Manual stop |
-| SSH disconnect | 🔴 Offline — Terminal closed |
-| Code crash | 🔴 Offline — Application crash |
+| Settings refresh | 🔄 Restarted + hostname + timestamp |
+| CPU/RAM > threshold | ⚠️ High Resource Usage + stats + timestamp |
+| Ctrl+C / `systemctl stop` | 🔴 Offline — 🛑 Manual stop (Ctrl+C) |
+| PM2 stop/restart | 🔴 Offline — ⚙️ Process terminated (systemctl/PM2/Docker) |
+| SSH disconnect | 🔴 Offline — 📡 Terminal closed / SSH disconnected |
+| Code crash | 🔴 Offline — 💥 Application crash |
 | Power outage (on next boot) | 🔌 Recovery Alert — Unexpected shutdown |
 
-Threshold and cooldown are configurable from the Settings page.
+Threshold and cooldown are configurable from the **Settings** page in the dashboard.
+
+### Shutdown detection
+
+The system uses a `.last_shutdown` state file:
+- On start: writes `status: running`
+- On graceful shutdown: writes `status: stopped` + reason
+- On next boot: if file still says `running` → detected as ungraceful (power loss/OOM/crash)
 
 ---
 
 ## Watchdog (Cross-Server Monitoring)
 
-For detecting power outages and network failures in **real-time**, deploy the watchdog script on a **second server**. Both servers monitor each other.
+For real-time detection of power outages and network failures, deploy the watchdog script on a **second server**. Both servers monitor each other.
 
 ```
 Server Rumah ◄──── watchdog.sh (cron) ────► Server Kantor
@@ -121,11 +188,11 @@ Server Rumah ◄──── watchdog.sh (cron) ────► Server Kantor
 **On Server Rumah** (monitors Server Kantor):
 
 ```bash
-# Edit the config section in the script
 nano scripts/watchdog.sh
 ```
 
 ```bash
+# Edit these values:
 TARGET_HOST="IP_SERVER_KANTOR"
 TARGET_PORT="5069"
 TARGET_NAME="Server Kantor"
@@ -145,12 +212,33 @@ crontab -e
 
 **On Server Kantor** (monitors Server Rumah): same steps, swap `TARGET_*` values.
 
-### How it works
+### Health check layers
 
-1. Every 2 minutes, checks target via **HTTP → TCP → ICMP ping** (3 layers)
-2. After **3 consecutive failures** → sends 🔴 Server DOWN alert to Telegram
-3. When server recovers → sends ✅ Recovery alert
-4. Possible causes listed: power outage, network failure, crash, hardware failure
+The watchdog uses 3 layers of checks before declaring a server down:
+
+| Layer | Method | What it checks |
+|-------|--------|---------------|
+| 1 | HTTP GET `/api/verify` | Application is running |
+| 2 | TCP port check | Port 5069 is open |
+| 3 | ICMP ping | Server is reachable |
+
+After **3 consecutive failures** (~6 minutes) → sends alert to Telegram.
+When server recovers → sends recovery notification.
+
+---
+
+## Deployment with Cloudflare Tunnel
+
+```yaml
+# In your Cloudflare Tunnel config:
+- hostname: yourdomain.com
+  service: http://localhost:5069
+```
+
+Production serves everything on **one port** (5069):
+- `yourdomain.com/` → React dashboard
+- `yourdomain.com/api/*` → REST API
+- `yourdomain.com/ws/*` → WebSocket terminal
 
 ---
 
@@ -159,7 +247,7 @@ crontab -e
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | POST | `/api/login` | ❌ | Login |
-| GET | `/api/verify` | ✅ | Verify JWT |
+| GET | `/api/verify` | ✅ | Verify JWT token |
 | GET | `/api/system-stats` | ✅ | CPU, RAM, Disk, Load Avg, Uptime |
 | GET | `/api/services` | ✅ | List systemd services |
 | POST | `/api/services/:name/:action` | ✅ | Start/stop/restart service |
@@ -178,25 +266,26 @@ crontab -e
 
 ```
 ├── scripts/
-│   └── watchdog.sh       # Cross-server health monitor
+│   └── watchdog.sh            # Cross-server health monitor
 ├── server/
-│   ├── server.js         # Express API + WebSocket
-│   ├── monitor.js        # Telegram monitoring + shutdown detection
-│   └── dbInit.js         # Database migration
+│   ├── server.js              # Express API + WebSocket + static serving
+│   ├── monitor.js             # Telegram monitoring + shutdown detection
+│   └── dbInit.js              # Database migration
 ├── src/
 │   ├── components/layout/
-│   │   └── Shell.jsx     # Sidebar + Header + Notifications
+│   │   └── Shell.jsx          # Sidebar + Header + Notifications
 │   ├── pages/
-│   │   ├── Overview.jsx  # Dashboard home
-│   │   ├── Services.jsx  # Systemd manager
-│   │   ├── Storage.jsx   # Filesystem viewer
-│   │   ├── Security.jsx  # SSH & firewall
-│   │   ├── Terminal.jsx  # Web terminal
-│   │   ├── UsersPage.jsx # System users
-│   │   ├── Settings.jsx  # Telegram config
-│   │   └── Login.jsx     # Auth page
-│   └── App.jsx           # Router
-├── .env.example
+│   │   ├── Overview.jsx       # Dashboard home
+│   │   ├── Services.jsx       # Systemd manager
+│   │   ├── Storage.jsx        # Filesystem viewer
+│   │   ├── Security.jsx       # SSH & firewall
+│   │   ├── Terminal.jsx       # Web terminal (xterm.js)
+│   │   ├── UsersPage.jsx      # System users
+│   │   ├── Settings.jsx       # Telegram & monitoring config
+│   │   └── Login.jsx          # Auth page
+│   └── App.jsx                # React Router
+├── ecosystem.config.cjs       # PM2 configuration
+├── .env.example               # Environment template
 └── package.json
 ```
 
