@@ -88,9 +88,9 @@ app.get('/api/verify', authenticateToken, (req, res) => {
 
 app.get('/api/system-stats', authenticateToken, async (req, res) => {
     try {
-        const [cpu, mem, disk, osInfo, time, networkIfaces, cpuTemp, cpuInfo] = await Promise.all([
+        const [cpu, mem, disk, osInfo, time, networkIfaces, cpuTemp, cpuInfo, procData] = await Promise.all([
             si.currentLoad(), si.mem(), si.fsSize(), si.osInfo(), si.time(),
-            si.networkInterfaces(), si.cpuTemperature(), si.cpu()
+            si.networkInterfaces(), si.cpuTemperature(), si.cpu(), si.processes()
         ]);
         const loadAvg = os.loadavg();
         const primaryNet = (Array.isArray(networkIfaces) ? networkIfaces : []).find(i => !i.internal && i.ip4) || {};
@@ -119,7 +119,17 @@ app.get('/api/system-stats', authenticateToken, async (req, res) => {
             ip: primaryNet.ip4 || '-',
             mac: primaryNet.mac || '-',
             netInterface: primaryNet.iface || '-',
-            processes: (await si.processes()).all,
+            processes: procData.all,
+            topProcesses: procData.list
+                .sort((a, b) => b.cpu - a.cpu)
+                .slice(0, 10)
+                .map(p => ({
+                    name: p.name,
+                    user: p.user,
+                    cpu: p.cpu.toFixed(1),
+                    mem: p.mem.toFixed(1),
+                    status: p.state
+                })),
             updates: (() => {
                 if (os.platform() !== 'linux') return null;
                 try {

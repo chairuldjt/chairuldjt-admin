@@ -31,6 +31,7 @@ const Overview = () => {
     const [services, setServices] = useState([]);
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [sortBy, setSortBy] = useState('cpu');
 
     useEffect(() => {
         fetchStats();
@@ -227,27 +228,50 @@ const Overview = () => {
 
                 {/* Sidebar Column */}
                 <div className="space-y-6">
-                    {/* Services Card */}
+                    {/* Services/Processes Card */}
                     <div className="glass p-6 rounded-3xl">
-                        <h4 className="text-sm font-bold text-gray-400 mb-4 tracking-wider uppercase flex items-center gap-2">
-                            <Activity className="w-4 h-4" /> Active Services
-                        </h4>
-                        <div className="space-y-4">
-                            {services.length > 0 ? services.map((s) => (
-                                <div key={s.name} className="flex items-center justify-between group cursor-pointer p-2 rounded-xl hover:bg-white/5 transition-colors">
-                                    <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors truncate max-w-[160px]">{s.name}</span>
-                                        <span className={`text-[10px] font-medium ${s.status === 'active' ? 'text-green-400' : 'text-red-400'}`}>
-                                            {s.status === 'active' ? 'Running' : 'Failed'}
-                                        </span>
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-sm font-bold text-gray-400 tracking-wider uppercase flex items-center gap-2">
+                                <Activity className="w-4 h-4" /> Resource Usage
+                            </h4>
+                            <div className="flex bg-white/5 rounded-lg p-1">
+                                <button
+                                    onClick={() => setSortBy('cpu')}
+                                    className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${sortBy === 'cpu' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    CPU
+                                </button>
+                                <button
+                                    onClick={() => setSortBy('mem')}
+                                    className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${sortBy === 'mem' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    RAM
+                                </button>
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            {stats?.topProcesses ? [...stats.topProcesses]
+                                .sort((a, b) => b[sortBy] - a[sortBy])
+                                .slice(0, 8)
+                                .map((p, idx) => (
+                                    <div key={`${p.name}-${idx}`} className="flex items-center justify-between group p-2 rounded-xl hover:bg-white/5 transition-colors">
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="text-xs font-bold text-white group-hover:text-blue-400 transition-colors truncate pr-2">{p.name}</span>
+                                            <span className="text-[9px] text-gray-600 font-medium uppercase tracking-tighter">{p.user} • {p.status}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <div className="flex flex-col items-end">
+                                                <span className={`text-[10px] font-bold ${parseFloat(p.cpu) > 50 ? 'text-red-400' : 'text-blue-400'}`}>
+                                                    {p.cpu}% <span className="text-[8px] opacity-50">CPU</span>
+                                                </span>
+                                                <span className={`text-[10px] font-bold ${parseFloat(p.mem) > 50 ? 'text-red-400' : 'text-purple-400'}`}>
+                                                    {p.mem}% <span className="text-[8px] opacity-50">RAM</span>
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    {s.status === 'active'
-                                        ? <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                                        : <XCircle className="w-3.5 h-3.5 text-red-400" />
-                                    }
-                                </div>
-                            )) : (
-                                <p className="text-xs text-gray-600 italic">No active services tracked...</p>
+                                )) : (
+                                <p className="text-xs text-gray-600 italic">No usage data...</p>
                             )}
                         </div>
                     </div>
