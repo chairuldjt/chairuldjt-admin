@@ -7,7 +7,9 @@ import dotenv from 'dotenv';
 import os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { initMonitor, refreshMonitorSettings, getMonitorStatus, sendShutdownNotification } from './monitor.js';
@@ -21,6 +23,13 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// Production: serve React build from dist/
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const distPath = path.join(__dirname, '..', 'dist');
+if (existsSync(distPath)) {
+    app.use(express.static(distPath));
+}
 
 // Database Connection Pool
 const pool = mysql.createPool({
@@ -329,8 +338,15 @@ wss.on('connection', async (ws, req) => {
     }
 });
 
+// Production: SPA fallback — all non-API routes serve index.html
+if (existsSync(distPath)) {
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+    });
+}
+
 server.listen(PORT, () => {
-    console.log(`📡 ChairuldjtAdmin Backend running on http://localhost:${PORT}`);
+    console.log(`📡 ChairuldjtAdmin running on http://localhost:${PORT}`);
 });
 
 // Graceful shutdown — send Telegram "going offline" notification with reason
