@@ -10,9 +10,9 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api': 'http://localhost:5000',
+      '/api': 'http://localhost:5069',
       '/ws': {
-        target: 'ws://localhost:5000',
+        target: 'ws://localhost:5069',
         ws: true,
       },
     },
