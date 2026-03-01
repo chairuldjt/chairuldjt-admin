@@ -48,8 +48,8 @@ send_telegram() {
 
 # Try HTTP health check first, fallback to ping
 check_server() {
-    # Method 1: HTTP check (if ChairuldjtAdmin backend is running)
-    if curl -s --connect-timeout 5 --max-time 10 "http://${TARGET_HOST}:${TARGET_PORT}/api/verify" > /dev/null 2>&1; then
+    # Method 1: HTTP check (validates app is actually responding, not just Cloudflare CDN)
+    if curl -sf --connect-timeout 5 --max-time 10 "http://${TARGET_HOST}:${TARGET_PORT}/api/verify" > /dev/null 2>&1; then
         return 0
     fi
 
