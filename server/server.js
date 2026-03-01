@@ -88,9 +88,9 @@ app.get('/api/verify', authenticateToken, (req, res) => {
 
 app.get('/api/system-stats', authenticateToken, async (req, res) => {
     try {
-        const [cpu, mem, disk, osInfo, time, networkIfaces, cpuTemp] = await Promise.all([
+        const [cpu, mem, disk, osInfo, time, networkIfaces, cpuTemp, cpuInfo] = await Promise.all([
             si.currentLoad(), si.mem(), si.fsSize(), si.osInfo(), si.time(),
-            si.networkInterfaces(), si.cpuTemperature()
+            si.networkInterfaces(), si.cpuTemperature(), si.cpu()
         ]);
         const loadAvg = os.loadavg();
         const primaryNet = (Array.isArray(networkIfaces) ? networkIfaces : []).find(i => !i.internal && i.ip4) || {};
@@ -106,15 +106,41 @@ app.get('/api/system-stats', authenticateToken, async (req, res) => {
                 total: (disk[0].size / (1024 ** 3)).toFixed(1),
                 percent: disk[0].use.toFixed(1)
             },
-            loadAvg: loadAvg[0].toFixed(2),
+            loadAvg: {
+                min1: loadAvg[0].toFixed(2),
+                min5: loadAvg[1].toFixed(2),
+                min15: loadAvg[2].toFixed(2)
+            },
             uptime: time.uptime,
             hostname: osInfo.hostname,
             distro: osInfo.distro,
             kernel: osInfo.kernel,
+            processor: `${cpuInfo.manufacturer} ${cpuInfo.brand} @ ${cpuInfo.speed}GHz (${cpuInfo.cores} cores)`,
             ip: primaryNet.ip4 || '-',
             mac: primaryNet.mac || '-',
             netInterface: primaryNet.iface || '-',
-            cpuTemp: cpuTemp.main !== null ? cpuTemp.main : null
+            processes: (await si.processes()).all,
+            updates: (() => {
+                if (os.platform() !== 'linux') return null;
+                try {
+                    const updateFile = '/var/lib/update-notifier/updates-available';
+                    if (existsSync(updateFile)) {
+                        const content = readFileSync(updateFile, 'utf-8');
+                        const match = content.match(/(\d+) updates can be applied/);
+                        const securityMatch = content.match(/(\d+) of these updates are security updates/);
+                        return {
+                            total: match ? parseInt(match[1]) : 0,
+                            security: securityMatch ? parseInt(securityMatch[1]) : 0,
+                            raw: content.trim()
+                        };
+                    }
+                } catch { /* ignore */ }
+                return null;
+            })(),
+            cpuTemp: {
+                main: cpuTemp.main !== null ? cpuTemp.main : null,
+                cores: cpuTemp.cores || []
+            }
         });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
