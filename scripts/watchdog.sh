@@ -6,40 +6,34 @@
 # Each server monitors the OTHER server.
 #
 # Setup:
-#   1. Edit the config below
-#   2. chmod +x watchdog.sh
-#   3. Add to cron: crontab -e
+#   1. Copy .env.watchdog.example → .env.watchdog
+#   2. Edit .env.watchdog with your values
+#   3. chmod +x watchdog.sh
+#   4. Add to cron: crontab -e
 #      */2 * * * * /path/to/watchdog.sh >> /var/log/watchdog.log 2>&1
-#
-# How it works:
-#   - Every 2 minutes, checks the TARGET server via HTTP
-#   - If 3 consecutive failures → sends Telegram alert
-#   - When server comes back → sends recovery alert
 # ============================================================
 
-# ─── CONFIG (edit these) ────────────────────────────────────
-TELEGRAM_BOT_TOKEN="YOUR_BOT_TOKEN_HERE"
-TELEGRAM_CHAT_ID="YOUR_CHAT_ID_HERE"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/../.env.watchdog"
 
-# Target server to monitor (the OTHER server)
-# For same network: use IP, e.g. "192.168.1.100"
-# For different networks: use Cloudflare domain, e.g. "chatech.site"
-TARGET_HOST="10.45.128.127"
-TARGET_PORT="5069"
-TARGET_NAME="Server Rumah"
+# Load config from .env.watchdog
+if [ ! -f "$ENV_FILE" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ❌ Config file not found: ${ENV_FILE}"
+    echo "  Copy .env.watchdog.example to .env.watchdog and edit it."
+    exit 1
+fi
 
-# This server's name (for identification in alerts)
-THIS_SERVER="Server Kantor"
+source "$ENV_FILE"
 
-# How many consecutive failures before alerting (default: 3)
-FAIL_THRESHOLD=3
+# Defaults
+FAIL_THRESHOLD="${FAIL_THRESHOLD:-3}"
+USE_HTTPS="${USE_HTTPS:-no}"
+TARGET_PORT="${TARGET_PORT:-5069}"
+TARGET_NAME="${TARGET_NAME:-Remote Server}"
+THIS_SERVER="${THIS_SERVER:-This Server}"
 
-# Use HTTPS? Set to "yes" if using Cloudflare domain
-USE_HTTPS="no"
-
-# State file to track failures (auto-generated, don't edit)
-STATE_FILE="/tmp/watchdog_$(echo ${TARGET_HOST} | tr '.' '_')_state"
-# ─────────────────────────────────────────────────────────────
+# State file (auto-generated)
+STATE_FILE="/tmp/watchdog_$(echo ${TARGET_HOST} | tr './' '_')_state"
 
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 
@@ -53,7 +47,6 @@ send_telegram() {
     echo "[${TIMESTAMP}] 📤 Telegram response: ${result}"
 }
 
-# Health check — only HTTP, most reliable for cross-network
 check_server() {
     local proto="http"
     if [ "$USE_HTTPS" = "yes" ]; then
@@ -67,7 +60,6 @@ check_server() {
 
     echo "[${TIMESTAMP}] 🔍 Check ${url} → HTTP ${http_code}, curl exit ${exit_code}"
 
-    # Success only if curl succeeded AND got HTTP 2xx
     if [ "$exit_code" -eq 0 ] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
         return 0
     fi
@@ -84,11 +76,8 @@ else
     WAS_DOWN="no"
 fi
 
-# Check the target server
 if check_server; then
-    # Server is UP
     if [ "$WAS_DOWN" = "yes" ]; then
-        # Was down, now recovered!
         send_telegram "✅ *Recovery — ${TARGET_NAME}*
 
 🖥 *Target:* \`${TARGET_HOST}\`
@@ -102,14 +91,12 @@ if check_server; then
     echo "0" > "$STATE_FILE"
     echo "no" >> "$STATE_FILE"
 else
-    # Server is DOWN
     FAIL_COUNT=$((FAIL_COUNT + 1))
     echo "$FAIL_COUNT" > "$STATE_FILE"
 
     echo "[${TIMESTAMP}] ❌ ${TARGET_NAME} check FAILED (${FAIL_COUNT}/${FAIL_THRESHOLD})"
 
     if [ "$FAIL_COUNT" -ge "$FAIL_THRESHOLD" ] && [ "$WAS_DOWN" != "yes" ]; then
-        # Threshold reached — send alert!
         send_telegram "🔴 *Server DOWN — ${TARGET_NAME}*
 
 🖥 *Target:* \`${TARGET_HOST}:${TARGET_PORT}\`

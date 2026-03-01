@@ -25,4 +25,5 @@ dist-ssr
 
 # Secrets & state
 .env
+.env.watchdog
 server/.last_shutdown
