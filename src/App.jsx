@@ -10,6 +10,8 @@ import Security from './pages/Security';
 import TerminalPage from './pages/Terminal';
 import UsersPage from './pages/UsersPage';
 import Cloudflared from './pages/Cloudflared';
+import Docker from './pages/Docker';
+import Database from './pages/Database';
 
 function Dashboard({ onLogout }) {
   const location = useLocation();
@@ -22,6 +24,8 @@ function Dashboard({ onLogout }) {
     '/storage': 'Storage',
     '/security': 'Security',
     '/cloudflared': 'Cloudflared',
+    '/docker': 'Docker',
+    '/database': 'Database',
     '/terminal': 'Terminal',
     '/settings': 'Settings',
   };
@@ -36,6 +40,8 @@ function Dashboard({ onLogout }) {
         <Route path="/storage" element={<Storage />} />
         <Route path="/security" element={<Security />} />
         <Route path="/cloudflared" element={<Cloudflared />} />
+        <Route path="/docker" element={<Docker />} />
+        <Route path="/database" element={<Database />} />
         <Route path="/terminal" element={<TerminalPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

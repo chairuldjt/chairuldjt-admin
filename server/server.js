@@ -14,9 +14,12 @@ import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { initMonitor, refreshMonitorSettings, getMonitorStatus, sendShutdownNotification } from './monitor.js';
 import si from 'systeminformation';
+import Docker from 'dockerode';
 
 dotenv.config();
 const execAsync = promisify(exec);
+const isWindows = process.platform === 'win32';
+const docker = new Docker(isWindows ? { socketPath: '//./pipe/docker_engine' } : { socketPath: '/var/run/docker.sock' });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -294,6 +297,151 @@ app.get('/api/storage', authenticateToken, async (req, res) => {
                 write: ((diskIO.wIO_sec || 0) / (1024 ** 2)).toFixed(2)
             }
         });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ───────────── DATABASE ─────────────
+
+app.get('/api/database/list', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SHOW DATABASES');
+        res.json(rows.map(r => r.Database));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/database/tables/:db', authenticateToken, async (req, res) => {
+    const { db } = req.params;
+    try {
+        const [rows] = await pool.query(`SHOW TABLES FROM \`${db}\``);
+        res.json(rows.map(r => r[`Tables_in_${db}`]));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/database/table-info/:db/:table', authenticateToken, async (req, res) => {
+    const { db, table } = req.params;
+    try {
+        const [rows] = await pool.query(`DESCRIBE \`${db}\`.\`${table}\``);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/database/table-data/:db/:table', authenticateToken, async (req, res) => {
+    const { db, table } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
+    try {
+        const [rows] = await pool.query(`SELECT * FROM \`${db}\`.\`${table}\` LIMIT ?`, [limit]);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/database/query', authenticateToken, async (req, res) => {
+    const { sql, db } = req.body;
+    if (!sql) return res.status(400).json({ error: 'SQL query required' });
+    try {
+        if (db) await pool.query(`USE \`${db}\``);
+        const [rows] = await pool.query(sql);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/database/row/delete', authenticateToken, async (req, res) => {
+    const { db, table, where } = req.body;
+    if (!db || !table || !where) return res.status(400).json({ error: 'Missing parameters' });
+    try {
+        const whereClause = Object.keys(where).map(k => `\`${k}\` = ?`).join(' AND ');
+        const values = Object.values(where);
+        const sql = `DELETE FROM \`${db}\`.\`${table}\` WHERE ${whereClause} LIMIT 1`;
+        await pool.query(sql, values);
+        res.json({ message: 'Row deleted successfully' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/database/row/update', authenticateToken, async (req, res) => {
+    const { db, table, data, where } = req.body;
+    if (!db || !table || !data || !where) return res.status(400).json({ error: 'Missing parameters' });
+    try {
+        const setClause = Object.keys(data).map(k => `\`${k}\` = ?`).join(', ');
+        const whereClause = Object.keys(where).map(k => `\`${k}\` = ?`).join(' AND ');
+        const values = [...Object.values(data), ...Object.values(where)];
+        const sql = `UPDATE \`${db}\`.\`${table}\` SET ${setClause} WHERE ${whereClause} LIMIT 1`;
+        await pool.query(sql, values);
+        res.json({ message: 'Row updated successfully' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/database/row/insert', authenticateToken, async (req, res) => {
+    const { db, table, data } = req.body;
+    if (!db || !table || !data) return res.status(400).json({ error: 'Missing parameters' });
+    try {
+        const cols = Object.keys(data).map(k => `\`${k}\``).join(', ');
+        const placeholders = Object.keys(data).map(() => '?').join(', ');
+        const values = Object.values(data);
+        const sql = `INSERT INTO \`${db}\`.\`${table}\` (${cols}) VALUES (${placeholders})`;
+        await pool.query(sql, values);
+        res.json({ message: 'Row inserted successfully' });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// ───────────── DOCKER ─────────────
+
+app.get('/api/docker/info', authenticateToken, async (req, res) => {
+    try {
+        const info = await docker.info();
+        res.json(info);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/docker/containers', authenticateToken, async (req, res) => {
+    try {
+        const containers = await docker.listContainers({ all: true });
+        res.json(containers);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/docker/containers/:id/stats', authenticateToken, async (req, res) => {
+    try {
+        const container = docker.getContainer(req.params.id);
+        const stats = await container.stats({ stream: false });
+        res.json(stats);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/docker/containers/:id/logs', authenticateToken, async (req, res) => {
+    try {
+        const container = docker.getContainer(req.params.id);
+        const logs = await container.logs({
+            stdout: true,
+            stderr: true,
+            tail: 100,
+            timestamps: true,
+            follow: false
+        });
+        res.set('Content-Type', 'text/plain');
+        res.send(logs.toString());
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/docker/containers/:id/:action', authenticateToken, async (req, res) => {
+    const { id, action } = req.params;
+    const allowed = ['start', 'stop', 'restart', 'remove'];
+    if (!allowed.includes(action)) return res.status(400).json({ error: 'Invalid action' });
+    try {
+        const container = docker.getContainer(id);
+        if (action === 'start') await container.start();
+        else if (action === 'stop') await container.stop();
+        else if (action === 'restart') await container.restart();
+        else if (action === 'remove') await container.remove({ force: true });
+
+        addNotification('info', `Docker: Container ${id.substring(0, 12)} ${action}ed`);
+        res.json({ message: `Container ${action}ed successfully` });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/docker/images', authenticateToken, async (req, res) => {
+    try {
+        const images = await docker.listImages();
+        res.json(images);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
