@@ -67,10 +67,23 @@ const timeAgo = (iso) => {
 
 const Shell = ({ children, onLogout, activeTab }) => {
     const navigate = useNavigate();
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [notifOpen, setNotifOpen] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const notifRef = useRef(null);
+
+    // Responsive sidebar state
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth >= 1024) {
+                setIsSidebarOpen(true);
+            } else {
+                setIsSidebarOpen(false);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const fetchNotifications = async () => {
         try {
@@ -110,22 +123,41 @@ const Shell = ({ children, onLogout, activeTab }) => {
 
     const handleNav = (item) => {
         navigate(item.path);
+        if (window.innerWidth < 1024) {
+            setIsSidebarOpen(false);
+        }
     };
 
     return (
         <div className="flex min-h-screen bg-[#0a0c10] text-gray-100 font-sans">
+            {/* Mobile Sidebar Backdrop */}
+            {isSidebarOpen && window.innerWidth < 1024 && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
             {/* Sidebar */}
             <aside
                 className={`fixed inset-y-0 left-0 z-50 w-72 transition-all duration-300 ease-in-out transform
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          bg-[#0d1117]/80 backdrop-blur-xl border-r border-white/5`}
+          bg-[#0d1117] lg:bg-[#0d1117]/80 backdrop-blur-xl border-r border-white/5 shadow-2xl lg:shadow-none`}
             >
-                <div className="p-8 h-full flex flex-col">
-                    <div className="flex items-center gap-3 mb-10 px-2 cursor-pointer" onClick={() => navigate('/')}>
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                            <Zap className="w-6 h-6 text-white fill-white" />
+                <div className="p-6 lg:p-8 h-full flex flex-col">
+                    <div className="flex items-center justify-between mb-10 px-2">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => { navigate('/'); if (window.innerWidth < 1024) setIsSidebarOpen(false); }}>
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                                <Zap className="w-6 h-6 text-white fill-white" />
+                            </div>
+                            <h1 className="text-xl font-bold tracking-tight text-white">Chairuldjt<span className="text-blue-500">Admin</span></h1>
                         </div>
-                        <h1 className="text-xl font-bold tracking-tight text-white">Chairuldjt<span className="text-blue-500">Admin</span></h1>
+                        <button
+                            onClick={() => setIsSidebarOpen(false)}
+                            className="lg:hidden p-2 text-gray-500 hover:text-white"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
                     </div>
 
                     <nav className="space-y-2 flex-grow">
@@ -182,9 +214,9 @@ const Shell = ({ children, onLogout, activeTab }) => {
             </aside>
 
             {/* Main Content Area */}
-            <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'pl-72' : 'pl-0'}`}>
+            <main className={`flex-1 transition-all duration-300 ${isSidebarOpen && window.innerWidth >= 1024 ? 'lg:pl-72' : 'pl-0'}`}>
                 {/* Header */}
-                <header className="sticky top-0 z-40 h-20 border-b border-white/5 bg-[#0a0c11]/60 backdrop-blur-md px-8 flex items-center justify-between">
+                <header className="sticky top-0 z-40 h-20 border-b border-white/5 bg-[#0a0c11]/60 backdrop-blur-md px-4 lg:px-8 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -192,24 +224,24 @@ const Shell = ({ children, onLogout, activeTab }) => {
                         >
                             <Menu className="w-6 h-6" />
                         </button>
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <div className="hidden sm:flex items-center gap-2 text-sm text-gray-400">
                             <span>Home</span>
                             <ChevronRight className="w-4 h-4" />
                             <span className="text-white font-medium">{activeTab}</span>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                        <div className="relative group">
+                    <div className="flex items-center gap-3 lg:gap-6">
+                        <div className="relative group hidden md:block">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-blue-400 transition-colors" />
                             <input
                                 type="text"
                                 placeholder="Search commands..."
-                                className="bg-white/5 border border-white/5 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/30 w-64 transition-all"
+                                className="bg-white/5 border border-white/5 rounded-full py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500/50 focus:border-blue-500/30 w-40 lg:w-64 transition-all"
                             />
                         </div>
 
-                        <div className="h-8 w-px bg-white/5" />
+                        <div className="h-8 w-px bg-white/5 hidden md:block" />
 
                         {/* Notification Bell */}
                         <div className="relative" ref={notifRef}>
@@ -227,7 +259,7 @@ const Shell = ({ children, onLogout, activeTab }) => {
 
                             {/* Dropdown */}
                             {notifOpen && (
-                                <div className="absolute right-0 top-full mt-3 w-96 glass rounded-2xl border border-white/10 shadow-2xl shadow-black/50 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="absolute right-0 top-full mt-3 w-[calc(100vw-2rem)] sm:w-96 glass rounded-2xl border border-white/10 shadow-2xl shadow-black/50 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                                     <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
                                         <h4 className="text-sm font-bold text-white">Notifications</h4>
                                         {unreadCount > 0 && (
@@ -259,7 +291,7 @@ const Shell = ({ children, onLogout, activeTab }) => {
                 </header>
 
                 {/* Page Content */}
-                <div className="p-8 max-w-7xl mx-auto">
+                <div className="p-4 lg:p-8 max-w-7xl mx-auto">
                     {children}
                 </div>
             </main>

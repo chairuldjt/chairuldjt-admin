@@ -29,9 +29,11 @@ const Storage = () => {
 
     return (
         <div className="space-y-8">
-            <div>
-                <h2 className="text-3xl font-bold text-white mb-2">Storage Overview</h2>
-                <p className="text-gray-400">All mounted filesystems and disk I/O statistics.</p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">Storage Overview</h2>
+                    <p className="text-gray-400 text-sm md:text-base">All mounted filesystems and disk I/O statistics.</p>
+                </div>
             </div>
 
             {/* Disk I/O */}
@@ -63,20 +65,20 @@ const Storage = () => {
             </div>
 
             {/* Filesystems */}
-            <div className="glass p-8 rounded-[2rem]">
+            <div className="glass p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem]">
                 <h3 className="text-lg font-bold text-white mb-6">Mounted Filesystems</h3>
                 <div className="space-y-6">
                     {data?.filesystems?.map((fs, i) => (
-                        <div key={i} className="p-5 bg-white/[0.02] rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
-                            <div className="flex items-start justify-between mb-4">
+                        <div key={i} className="p-4 md:p-5 bg-white/[0.02] rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
                                 <div className="flex items-center gap-3">
-                                    <HardDrive className="w-5 h-5 text-blue-400" />
-                                    <div>
-                                        <h4 className="text-sm font-bold text-white">{fs.mount}</h4>
-                                        <p className="text-[10px] text-gray-500 font-mono">{fs.fs} ({fs.type})</p>
+                                    <HardDrive className="w-5 h-5 text-blue-400 shrink-0" />
+                                    <div className="min-w-0">
+                                        <h4 className="text-sm font-bold text-white truncate">{fs.mount}</h4>
+                                        <p className="text-[10px] text-gray-500 font-mono truncate">{fs.fs} ({fs.type})</p>
                                     </div>
                                 </div>
-                                <div className="text-right">
+                                <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:gap-0 sm:text-right shrink-0">
                                     <span className="text-sm font-bold text-white">{fs.used} GB</span>
                                     <span className="text-xs text-gray-500"> / {fs.size} GB</span>
                                 </div>

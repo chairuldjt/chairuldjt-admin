@@ -96,21 +96,21 @@ const Overview = () => {
     return (
         <div className="space-y-8 pb-10 font-sans">
             {/* Header section with hostname/distro info */}
-            <div className="flex justify-between items-end">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h2 className="text-3xl font-bold text-white mb-2">System Overview</h2>
-                    <p className="text-gray-400 max-w-lg">
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">System Overview</h2>
+                    <p className="text-gray-400 text-sm md:text-base max-w-lg">
                         Monitoring <span className="text-blue-400 font-bold">{stats?.hostname || 'Node'}</span>
                         {stats?.distro && <span className="text-gray-500 text-xs ml-2"> — {stats.distro}</span>}
                     </p>
                 </div>
-                <div className="flex gap-3">
-                    <div className="glass px-5 py-2.5 rounded-xl text-xs font-bold text-green-400 flex items-center gap-2">
+                <div className="flex flex-wrap gap-3">
+                    <div className="glass px-4 md:px-5 py-2.5 rounded-xl text-[10px] md:text-xs font-bold text-green-400 flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                         UPTIME: {formatUptime(stats?.uptime || 0)}
                     </div>
                     <button onClick={fetchStats}
-                        className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2">
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-4 md:px-5 py-2.5 rounded-xl text-xs md:text-sm font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2">
                         <Activity className="w-4 h-4" /> Refresh
                     </button>
                 </div>
@@ -126,11 +126,11 @@ const Overview = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Main Graph Card */}
-                <div className="lg:col-span-2 space-y-8">
-                    <div className="glass p-8 rounded-[2rem]">
-                        <div className="mb-10">
-                            <h3 className="text-xl font-bold text-white">Live Resource Monitor</h3>
-                            <p className="text-sm text-gray-500 mt-1">CPU vs Memory (updates every 5s)</p>
+                <div className="lg:col-span-2 space-y-6 md:space-y-8">
+                    <div className="glass p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem]">
+                        <div className="mb-6 md:mb-10">
+                            <h3 className="text-lg md:text-xl font-bold text-white">Live Resource Monitor</h3>
+                            <p className="text-xs md:text-sm text-gray-500 mt-1">CPU vs Memory (updates every 5s)</p>
                         </div>
                         <div className="h-[300px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -157,10 +157,10 @@ const Overview = () => {
                     </div>
 
                     {/* Detailed System Status (Webmin Style Expansion) */}
-                    <div className="glass p-8 rounded-[2rem] border-t-2 border-blue-500/20">
-                        <div className="flex items-center gap-3 mb-8">
+                    <div className="glass p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border-t-2 border-blue-500/20">
+                        <div className="flex items-center gap-3 mb-6 md:mb-8">
                             <Info className="w-5 h-5 text-blue-400" />
-                            <h3 className="text-xl font-bold text-white">System Status Details</h3>
+                            <h3 className="text-lg md:text-xl font-bold text-white">System Status Details</h3>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6 text-sm">
@@ -316,12 +316,12 @@ const StatCard = ({ title, value, unit, icon: Icon, color }) => (
 );
 
 const DetailRow = ({ label, value, icon: Icon }) => (
-    <div className="flex flex-col gap-1.5 py-2">
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 py-2 border-b border-white/5 last:border-0 md:border-0 md:py-2">
+        <div className="flex items-center gap-2 min-w-[140px]">
             {Icon && <Icon className="w-3 h-3 text-gray-600" />}
-            <span className="text-gray-500 font-bold tracking-tight">{label}</span>
+            <span className="text-gray-500 font-bold text-xs md:text-sm tracking-tight">{label}</span>
         </div>
-        <span className="text-white font-medium pl-0 md:pl-0">{value}</span>
+        <span className="text-white font-medium text-xs md:text-sm md:text-right break-all">{value}</span>
     </div>
 );
 
