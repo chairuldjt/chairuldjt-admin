@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Square, RotateCcw, Search, Loader2, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { api } from '../services/api';
 
 const Services = () => {
     const [services, setServices] = useState([]);
@@ -11,11 +12,8 @@ const Services = () => {
 
     const fetchServices = async () => {
         try {
-            const res = await fetch('/api/services', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-            });
-            const data = await res.json();
-            if (res.ok) setServices(data);
+            const data = await api.get('/api/services');
+            setServices(data);
         } catch (err) { console.error('Failed to fetch services'); }
         finally { setLoading(false); }
     };
@@ -23,10 +21,7 @@ const Services = () => {
     const handleAction = async (name, action) => {
         setActionLoading(`${name}-${action}`);
         try {
-            await fetch(`/api/services/${name}/${action}`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-            });
+            await api.post(`/api/services/${name}/${action}`);
             setTimeout(fetchServices, 1500);
         } catch (err) { console.error('Action failed'); }
         finally { setTimeout(() => setActionLoading(null), 1500); }

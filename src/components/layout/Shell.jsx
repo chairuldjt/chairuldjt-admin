@@ -69,6 +69,8 @@ const timeAgo = (iso) => {
     return `${Math.floor(diff / 86400)}d ago`;
 };
 
+import { api } from '../../services/api';
+
 const Shell = ({ children, onLogout, activeTab }) => {
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
@@ -91,19 +93,14 @@ const Shell = ({ children, onLogout, activeTab }) => {
 
     const fetchNotifications = async () => {
         try {
-            const res = await fetch('/api/notifications', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-            });
-            if (res.ok) setNotifications(await res.json());
+            const data = await api.get('/api/notifications');
+            setNotifications(data);
         } catch { /* ignore */ }
     };
 
     const markAllRead = async () => {
         try {
-            await fetch('/api/notifications/read-all', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-            });
+            await api.post('/api/notifications/read-all');
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         } catch { /* ignore */ }
     };

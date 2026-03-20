@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserCheck, UserX, Search, Loader2 } from 'lucide-react';
+import { api } from '../services/api';
 
 const UsersPage = () => {
     const [users, setUsers] = useState([]);
@@ -11,11 +12,8 @@ const UsersPage = () => {
 
     const fetchUsers = async () => {
         try {
-            const res = await fetch('/api/users', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-            });
-            const data = await res.json();
-            if (res.ok) setUsers(data);
+            const data = await api.get('/api/users');
+            setUsers(data);
         } catch (err) { console.error('Failed to fetch users'); }
         finally { setLoading(false); }
     };

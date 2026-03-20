@@ -26,6 +26,8 @@ import {
     ResponsiveContainer
 } from 'recharts';
 
+import { api } from '../services/api';
+
 const Overview = () => {
     const [stats, setStats] = useState(null);
     const [services, setServices] = useState([]);
@@ -42,34 +44,28 @@ const Overview = () => {
 
     const fetchStats = async () => {
         try {
-            const response = await fetch('/api/system-stats', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
+            const data = await api.get('/api/system-stats');
+            setStats(data);
+            setHistory(prev => {
+                const newEntry = {
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                    cpu: parseFloat(data.cpu),
+                    mem: parseFloat(data.mem.percent)
+                };
+                return [...prev, newEntry].slice(-20);
             });
-            const data = await response.json();
-            if (response.ok) {
-                setStats(data);
-                setHistory(prev => {
-                    const newEntry = {
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                        cpu: parseFloat(data.cpu),
-                        mem: parseFloat(data.mem.percent)
-                    };
-                    return [...prev, newEntry].slice(-20);
-                });
+        } catch (err) { 
+            if (err.message !== 'Session expired') {
+                console.error('Failed to fetch stats:', err); 
             }
-        } catch (err) { console.error('Failed to fetch stats'); }
+        }
         finally { setLoading(false); }
     };
 
     const fetchServices = async () => {
         try {
-            const res = await fetch('/api/services', {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('nexus_token')}` }
-            });
-            const data = await res.json();
-            if (res.ok) {
-                setServices(data.filter(s => s.status === 'active' || s.status === 'failed').slice(0, 6));
-            }
+            const data = await api.get('/api/services');
+            setServices(data.filter(s => s.status === 'active' || s.status === 'failed').slice(0, 6));
         } catch { /* ignore */ }
     };
 

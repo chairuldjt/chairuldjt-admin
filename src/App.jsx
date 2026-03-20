@@ -50,27 +50,48 @@ function Dashboard({ onLogout }) {
   );
 }
 
+import { api, setLogoutHandler } from './services/api';
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const token = localStorage.getItem('nexus_token');
-    const savedUser = localStorage.getItem('nexus_user');
-    if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
-  }, []);
-
-  const handleLoginSuccess = (userData) => {
-    setUser(userData);
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('nexus_token');
     localStorage.removeItem('nexus_user');
     setUser(null);
+  };
+
+  useEffect(() => {
+    // Set global logout handler for 403 errors
+    setLogoutHandler(handleLogout);
+
+    const verifySession = async () => {
+      const token = localStorage.getItem('nexus_token');
+      const savedUser = localStorage.getItem('nexus_user');
+      
+      if (token && savedUser) {
+        try {
+          // Double check with server
+          const data = await api.get('/api/verify');
+          if (data.valid) {
+            setUser(JSON.parse(savedUser));
+          } else {
+            handleLogout();
+          }
+        } catch (err) {
+          console.error('Session verification failed:', err);
+          handleLogout();
+        }
+      }
+      setLoading(false);
+    };
+
+    verifySession();
+  }, []);
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
   };
 
   if (loading) return null;
